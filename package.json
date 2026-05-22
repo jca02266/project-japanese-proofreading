@@ -231,8 +231,8 @@
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "textlint": "^12.5.1",
-    "textlint-plugin-html": "^0.3.0",
+    "textlint": "^15.7.1",
+    "textlint-plugin-html": "^1.0.1",
     "textlint-plugin-latex2e": "^1.2.0",
     "textlint-plugin-review": "^0.4.1",
     "textlint-rule-preset-icsmedia": "github:ics-creative/textlint-rule-preset-icsmedia",

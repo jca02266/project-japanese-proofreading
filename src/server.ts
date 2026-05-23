@@ -236,7 +236,8 @@ const validateTextDocument = async (
       }
 
       // ignoreErrors 設定に基づいてスキップ
-      if (settings.ignoreErrors?.includes(message.message)) {
+      const errorText = `${message.message}（${message.ruleId}）`;
+      if (settings.ignoreErrors?.includes(errorText)) {
         continue;
       }
 
@@ -467,6 +468,8 @@ const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
  */
 const createIgnoreErrorAction = (diagnostic: Diagnostic, isGlobal: boolean): CodeAction => {
   const scope = isGlobal ? "グローバル設定" : "ワークスペース設定";
+  // diagnostic.message から絵文字を除去したテキストを保存
+  const errorText = diagnostic.message.replace(/^🪄 /, '');
   const action = CodeAction.create(
     `このエラーを無視する（${scope}に追加）`,
     CodeActionKind.QuickFix,
@@ -474,7 +477,7 @@ const createIgnoreErrorAction = (diagnostic: Diagnostic, isGlobal: boolean): Cod
   action.command = {
     command: "japanese-proofreading.ignoreError",
     title: "エラーを無視する",
-    arguments: [{ errorMessage: diagnostic.message, isGlobal }],
+    arguments: [{ errorMessage: errorText, isGlobal }],
   };
   action.diagnostics = [diagnostic];
 

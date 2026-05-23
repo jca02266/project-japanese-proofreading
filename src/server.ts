@@ -87,10 +87,13 @@ connection.onCodeAction((params: CodeActionParams) => {
   const disableRuleActions: CodeAction[] = diagnostics
     .map((diagnostic) => createDisableRuleAction(diagnostic))
     .filter((action): action is CodeAction => action !== null);
-  const ignoreErrorActions: CodeAction[] = diagnostics
-    .map((diagnostic) => createIgnoreErrorAction(diagnostic))
+  const ignoreErrorActionsGlobal: CodeAction[] = diagnostics
+    .map((diagnostic) => createIgnoreErrorAction(diagnostic, true))
     .filter((action): action is CodeAction => action !== null);
-  return [...quickFixActions, ...setTermActions, ...disableRuleActions, ...ignoreErrorActions];
+  const ignoreErrorActionsWorkspace: CodeAction[] = diagnostics
+    .map((diagnostic) => createIgnoreErrorAction(diagnostic, false))
+    .filter((action): action is CodeAction => action !== null);
+  return [...quickFixActions, ...setTermActions, ...disableRuleActions, ...ignoreErrorActionsGlobal, ...ignoreErrorActionsWorkspace];
 });
 
 const getDefaultTextlintSettings = () => {
@@ -459,16 +462,19 @@ const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
 
 /**
  * エラーを無視するコードアクションを作成します。
+ * @param diagnostic 診断結果
+ * @param isGlobal true の場合はグローバル設定、false の場合はワークスペース設定に追加
  */
-const createIgnoreErrorAction = (diagnostic: Diagnostic): CodeAction => {
+const createIgnoreErrorAction = (diagnostic: Diagnostic, isGlobal: boolean): CodeAction => {
+  const scope = isGlobal ? "グローバル" : "ワークスペース";
   const action = CodeAction.create(
-    `このエラーを無視する（${diagnostic.message.substring(0, 30)}...）`,
+    `このエラーを許可する（${scope}設定に追加）`,
     CodeActionKind.QuickFix,
   );
   action.command = {
     command: "japanese-proofreading.ignoreError",
-    title: "エラーを無視する",
-    arguments: [{ errorMessage: diagnostic.message }],
+    title: "エラーを許可する",
+    arguments: [{ errorMessage: diagnostic.message, isGlobal }],
   };
   action.diagnostics = [diagnostic];
 

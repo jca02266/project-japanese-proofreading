@@ -77,11 +77,12 @@ export const activate = (context: ExtensionContext) => {
   context.subscriptions.push(
     commands.registerCommand(
       "japanese-proofreading.ignoreError",
-      async (args: { errorMessage: string }) => {
+      async (args: { errorMessage: string; isGlobal: boolean }) => {
         const config = workspace.getConfiguration("japanese-proofreading");
         const current = config.get<string[]>("ignoreErrors") ?? [];
         if (!current.includes(args.errorMessage)) {
-          await config.update("ignoreErrors", [...current, args.errorMessage], true);
+          const scope = args.isGlobal ? true : false;
+          await config.update("ignoreErrors", [...current, args.errorMessage], scope);
         }
       }
     )

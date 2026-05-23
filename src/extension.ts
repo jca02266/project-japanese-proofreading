@@ -47,16 +47,17 @@ export const activate = (context: ExtensionContext) => {
   context.subscriptions.push(
     commands.registerCommand(
       "japanese-proofreading.setPreferredTerm",
-      async (args: { original: string; preferred: string }) => {
+      async (args: { original: string; preferred: string; isGlobal: boolean }) => {
         const config = workspace.getConfiguration("japanese-proofreading");
         const current = config.get<Record<string, string>>("preferredTerms") ?? {};
         const pair = TERM_PAIRS.find(p => p.a === args.original);
         const defaultPreferred = pair?.b ?? args.original;
+        const scope = args.isGlobal ? true : false;
         if (args.preferred === defaultPreferred) {
           const { [args.original]: _, ...rest } = current;
-          await config.update("preferredTerms", rest, true);
+          await config.update("preferredTerms", rest, scope);
         } else {
-          await config.update("preferredTerms", { ...current, [args.original]: args.preferred }, true);
+          await config.update("preferredTerms", { ...current, [args.original]: args.preferred }, scope);
         }
       }
     )
@@ -66,9 +67,10 @@ export const activate = (context: ExtensionContext) => {
   context.subscriptions.push(
     commands.registerCommand(
       "japanese-proofreading.disableRule",
-      async (args: { ruleName: string; ruleId: string }) => {
+      async (args: { ruleName: string; ruleId: string; isGlobal: boolean }) => {
         const config = workspace.getConfiguration("japanese-proofreading");
-        await config.update(`textlint.${args.ruleName}`, false, true);
+        const scope = args.isGlobal ? true : false;
+        await config.update(`textlint.${args.ruleName}`, false, scope);
       }
     )
   );

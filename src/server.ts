@@ -79,13 +79,20 @@ connection.onCodeAction((params: CodeActionParams) => {
     return createQuickFixAction(diagnostic, textDocument);
   });
   // prhルールと優先表記エラーには「優先表記を設定」アクションを追加
-  const setTermActions: CodeAction[] = diagnostics
+  const setTermActionsGlobal: CodeAction[] = diagnostics
     .filter(v => v.code === "prh" || v.code === "preferred-term")
-    .map((diagnostic) => createSetPreferredTermAction(diagnostic, textDocument))
+    .map((diagnostic) => createSetPreferredTermAction(diagnostic, textDocument, true))
+    .filter((action): action is CodeAction => action !== null);
+  const setTermActionsWorkspace: CodeAction[] = diagnostics
+    .filter(v => v.code === "prh" || v.code === "preferred-term")
+    .map((diagnostic) => createSetPreferredTermAction(diagnostic, textDocument, false))
     .filter((action): action is CodeAction => action !== null);
   // すべての診断に「ルールを無効にする」と「このエラーを無視する」アクションを追加
-  const disableRuleActions: CodeAction[] = diagnostics
-    .map((diagnostic) => createDisableRuleAction(diagnostic))
+  const disableRuleActionsGlobal: CodeAction[] = diagnostics
+    .map((diagnostic) => createDisableRuleAction(diagnostic, true))
+    .filter((action): action is CodeAction => action !== null);
+  const disableRuleActionsWorkspace: CodeAction[] = diagnostics
+    .map((diagnostic) => createDisableRuleAction(diagnostic, false))
     .filter((action): action is CodeAction => action !== null);
   const ignoreErrorActionsGlobal: CodeAction[] = diagnostics
     .map((diagnostic) => createIgnoreErrorAction(diagnostic, true))
@@ -93,7 +100,16 @@ connection.onCodeAction((params: CodeActionParams) => {
   const ignoreErrorActionsWorkspace: CodeAction[] = diagnostics
     .map((diagnostic) => createIgnoreErrorAction(diagnostic, false))
     .filter((action): action is CodeAction => action !== null);
-  return [...quickFixActions, ...setTermActions, ...disableRuleActions, ...ignoreErrorActionsGlobal, ...ignoreErrorActionsWorkspace];
+  // グローバル設定の選択肢をまとめて、その後ワークスペース設定の選択肢をまとめる
+  return [
+    ...quickFixActions,
+    ...setTermActionsGlobal,
+    ...disableRuleActionsGlobal,
+    ...ignoreErrorActionsGlobal,
+    ...setTermActionsWorkspace,
+    ...disableRuleActionsWorkspace,
+    ...ignoreErrorActionsWorkspace,
+  ];
 });
 
 const getDefaultTextlintSettings = () => {
@@ -414,8 +430,11 @@ const createQuickFixAction = (diagnostic: Diagnostic, textDocument: TextDocument
 
 /**
  * 優先表記を設定するコードアクションを作成します。
+ * @param diagnostic 診断結果
+ * @param textDocument テキストドキュメント
+ * @param isGlobal true の場合はグローバル設定、false の場合はワークスペース設定に追加
  */
-const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: TextDocument): CodeAction | null => {
+const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: TextDocument, isGlobal: boolean): CodeAction | null => {
   const originalText = textDocument.getText(diagnostic.range);
   const pair = TERM_PAIRS.find(p => p.a === originalText || p.b === originalText);
   if (!pair) {
@@ -423,14 +442,15 @@ const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: Text
   }
 
   const baseOriginal = pair.a;
+  const scope = isGlobal ? "[グローバル設定]" : "[ワークスペース設定]";
   const action = CodeAction.create(
-    `「${originalText}」を優先表記とする（設定を変更）`,
+    `${scope} 「${originalText}」を優先表記とする`,
     CodeActionKind.QuickFix,
   );
   action.command = {
     command: "japanese-proofreading.setPreferredTerm",
     title: "優先表記を設定",
-    arguments: [{ original: baseOriginal, preferred: originalText }],
+    arguments: [{ original: baseOriginal, preferred: originalText, isGlobal }],
   };
   action.diagnostics = [diagnostic];
 
@@ -439,22 +459,25 @@ const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: Text
 
 /**
  * ルールを無効にするコードアクションを作成します。
+ * @param diagnostic 診断結果
+ * @param isGlobal true の場合はグローバル設定、false の場合はワークスペース設定に追加
  */
-const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
+const createDisableRuleAction = (diagnostic: Diagnostic, isGlobal: boolean): CodeAction | null => {
   if (!diagnostic.code) return null;
 
   const ruleId = diagnostic.code.toString();
   const ruleName = DEFAULT_EXTENSION_RULES.find(r => r.ruleId === ruleId)?.ruleName;
   if (!ruleName) return null;
 
+  const scope = isGlobal ? "[グローバル設定]" : "[ワークスペース設定]";
   const action = CodeAction.create(
-    `「${ruleName}」ルールを無効にする`,
+    `${scope} 「${ruleName}」ルールを無効にする`,
     CodeActionKind.QuickFix,
   );
   action.command = {
     command: "japanese-proofreading.disableRule",
     title: "ルールを無効にする",
-    arguments: [{ ruleName, ruleId }],
+    arguments: [{ ruleName, ruleId, isGlobal }],
   };
   action.diagnostics = [diagnostic];
 
@@ -467,11 +490,11 @@ const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
  * @param isGlobal true の場合はグローバル設定、false の場合はワークスペース設定に追加
  */
 const createIgnoreErrorAction = (diagnostic: Diagnostic, isGlobal: boolean): CodeAction => {
-  const scope = isGlobal ? "グローバル設定" : "ワークスペース設定";
+  const scope = isGlobal ? "[グローバル設定]" : "[ワークスペース設定]";
   // diagnostic.message から絵文字を除去したテキストを保存
   const errorText = diagnostic.message.replace(/^🪄 /, '');
   const action = CodeAction.create(
-    `このエラーを無視する（${scope}に追加）`,
+    `${scope} このエラーを無視する`,
     CodeActionKind.QuickFix,
   );
   action.command = {

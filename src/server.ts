@@ -466,14 +466,14 @@ const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
  * @param isGlobal true の場合はグローバル設定、false の場合はワークスペース設定に追加
  */
 const createIgnoreErrorAction = (diagnostic: Diagnostic, isGlobal: boolean): CodeAction => {
-  const scope = isGlobal ? "グローバル" : "ワークスペース";
+  const scope = isGlobal ? "グローバル設定" : "ワークスペース設定";
   const action = CodeAction.create(
-    `このエラーを許可する（${scope}設定に追加）`,
+    `このエラーを無視する（${scope}に追加）`,
     CodeActionKind.QuickFix,
   );
   action.command = {
     command: "japanese-proofreading.ignoreError",
-    title: "エラーを許可する",
+    title: "エラーを無視する",
     arguments: [{ errorMessage: diagnostic.message, isGlobal }],
   };
   action.diagnostics = [diagnostic];

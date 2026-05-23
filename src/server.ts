@@ -83,7 +83,14 @@ connection.onCodeAction((params: CodeActionParams) => {
     .filter(v => v.code === "prh" || v.code === "preferred-term")
     .map((diagnostic) => createSetPreferredTermAction(diagnostic, textDocument))
     .filter((action): action is CodeAction => action !== null);
-  return [...quickFixActions, ...setTermActions];
+  // すべての診断に「ルールを無効にする」と「このエラーを無視する」アクションを追加
+  const disableRuleActions: CodeAction[] = diagnostics
+    .map((diagnostic) => createDisableRuleAction(diagnostic))
+    .filter((action): action is CodeAction => action !== null);
+  const ignoreErrorActions: CodeAction[] = diagnostics
+    .map((diagnostic) => createIgnoreErrorAction(diagnostic))
+    .filter((action): action is CodeAction => action !== null);
+  return [...quickFixActions, ...setTermActions, ...disableRuleActions, ...ignoreErrorActions];
 });
 
 const getDefaultTextlintSettings = () => {
@@ -100,6 +107,7 @@ const defaultSettings: ITextlintSettings = {
   maxNumberOfProblems: 1000,
   textlint: getDefaultTextlintSettings(),
   preferredTerms: {},
+  ignoreErrors: [],
 };
 let globalSettings: ITextlintSettings = defaultSettings;
 const documentSettings: Map<string, Thenable<ITextlintSettings>> = new Map();
@@ -221,6 +229,11 @@ const validateTextDocument = async (
 
       // 有効とされているエラーか？
       if (!isTarget(settings, message.ruleId, message.message)) {
+        continue;
+      }
+
+      // ignoreErrors 設定に基づいてスキップ
+      if (settings.ignoreErrors?.includes(message.message)) {
         continue;
       }
 
@@ -420,6 +433,48 @@ const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: Text
   return action;
 };
 
+/**
+ * ルールを無効にするコードアクションを作成します。
+ */
+const createDisableRuleAction = (diagnostic: Diagnostic): CodeAction | null => {
+  if (!diagnostic.code) return null;
+
+  const ruleId = diagnostic.code.toString();
+  const ruleName = DEFAULT_EXTENSION_RULES.find(r => r.ruleId === ruleId)?.ruleName;
+  if (!ruleName) return null;
+
+  const action = CodeAction.create(
+    `「${ruleName}」ルールを無効にする`,
+    CodeActionKind.QuickFix,
+  );
+  action.command = {
+    command: "japanese-proofreading.disableRule",
+    title: "ルールを無効にする",
+    arguments: [{ ruleName, ruleId }],
+  };
+  action.diagnostics = [diagnostic];
+
+  return action;
+};
+
+/**
+ * エラーを無視するコードアクションを作成します。
+ */
+const createIgnoreErrorAction = (diagnostic: Diagnostic): CodeAction => {
+  const action = CodeAction.create(
+    `このエラーを無視する（${diagnostic.message.substring(0, 30)}...）`,
+    CodeActionKind.QuickFix,
+  );
+  action.command = {
+    command: "japanese-proofreading.ignoreError",
+    title: "エラーを無視する",
+    arguments: [{ errorMessage: diagnostic.message }],
+  };
+  action.diagnostics = [diagnostic];
+
+  return action;
+};
+
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
@@ -444,4 +499,8 @@ interface ITextlintSettings {
    * 値: 優先すべき表記
    */
   preferredTerms: { [key: string]: string };
+  /**
+   * 無視するエラーメッセージのリスト
+   */
+  ignoreErrors: string[];
 }

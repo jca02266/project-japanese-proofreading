@@ -61,6 +61,31 @@ export const activate = (context: ExtensionContext) => {
       }
     )
   );
+
+  // ルールを無効にするコマンド
+  context.subscriptions.push(
+    commands.registerCommand(
+      "japanese-proofreading.disableRule",
+      async (args: { ruleName: string; ruleId: string }) => {
+        const config = workspace.getConfiguration("japanese-proofreading");
+        await config.update(`textlint.${args.ruleName}`, false, true);
+      }
+    )
+  );
+
+  // エラーを無視するコマンド
+  context.subscriptions.push(
+    commands.registerCommand(
+      "japanese-proofreading.ignoreError",
+      async (args: { errorMessage: string }) => {
+        const config = workspace.getConfiguration("japanese-proofreading");
+        const current = config.get<string[]>("ignoreErrors") ?? [];
+        if (!current.includes(args.errorMessage)) {
+          await config.update("ignoreErrors", [...current, args.errorMessage], true);
+        }
+      }
+    )
+  );
 };
 
 export const deactivate = (): Thenable<void> | undefined => {

@@ -211,6 +211,12 @@
           "default": {},
           "description": "表記揺れのある用語の優先表記を設定します。Code Actionから自動設定できます。",
           "additionalProperties": { "type": "string" }
+        },
+        "japanese-proofreading.ignoreErrors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "指定されたエラーメッセージを無視します。Code Actionから自動設定できます。"
         }
       }
     },
@@ -218,6 +224,14 @@
       {
         "command": "japanese-proofreading.setPreferredTerm",
         "title": "優先表記を設定（テキスト校正くん）"
+      },
+      {
+        "command": "japanese-proofreading.disableRule",
+        "title": "ルールを無効にする（テキスト校正くん）"
+      },
+      {
+        "command": "japanese-proofreading.ignoreError",
+        "title": "このエラーを無視する（テキスト校正くん）"
       }
     ]
   },

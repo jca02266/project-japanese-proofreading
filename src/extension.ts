@@ -1,11 +1,12 @@
 import * as path from "path";
-import { ExtensionContext, workspace } from "vscode";
+import { commands, ExtensionContext, workspace } from "vscode";
 import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
   TransportKind,
 } from "vscode-languageclient/node";
+import { TERM_PAIRS } from "./rules/term-pairs";
 
 let client: LanguageClient;
 
@@ -41,6 +42,25 @@ export const activate = (context: ExtensionContext) => {
     clientOptions,
   );
   client.start();
+
+  // 優先表記を設定するコマンド
+  context.subscriptions.push(
+    commands.registerCommand(
+      "japanese-proofreading.setPreferredTerm",
+      async (args: { original: string; preferred: string }) => {
+        const config = workspace.getConfiguration("japanese-proofreading");
+        const current = config.get<Record<string, string>>("preferredTerms") ?? {};
+        const pair = TERM_PAIRS.find(p => p.a === args.original);
+        const defaultPreferred = pair?.b ?? args.original;
+        if (args.preferred === defaultPreferred) {
+          const { [args.original]: _, ...rest } = current;
+          await config.update("preferredTerms", rest, true);
+        } else {
+          await config.update("preferredTerms", { ...current, [args.original]: args.preferred }, true);
+        }
+      }
+    )
+  );
 };
 
 export const deactivate = (): Thenable<void> | undefined => {

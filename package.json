@@ -205,9 +205,21 @@
           "type": "boolean",
           "default": true,
           "description": "有効（ゼロ幅スペースを使用していないかチェックします）"
+        },
+        "japanese-proofreading.preferredTerms": {
+          "type": "object",
+          "default": {},
+          "description": "表記揺れのある用語の優先表記を設定します。Code Actionから自動設定できます。",
+          "additionalProperties": { "type": "string" }
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "japanese-proofreading.setPreferredTerm",
+        "title": "優先表記を設定（テキスト校正くん）"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

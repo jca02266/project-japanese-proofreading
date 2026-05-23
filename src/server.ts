@@ -27,6 +27,7 @@ import HTMLPlugin from "textlint-plugin-html";
 import LatexPlugin from "textlint-plugin-latex2e";
 import ReviewPlugin from "textlint-plugin-review";
 import { DEFAULT_EXTENSION_RULES } from "./rules/rule";
+import { TERM_PAIRS } from "./rules/term-pairs";
 
 const APP_NAME = "テキスト校正くん";
 
@@ -77,7 +78,12 @@ connection.onCodeAction((params: CodeActionParams) => {
   const quickFixActions = diagnostics.filter(v => v.data !== undefined).map((diagnostic) => {
     return createQuickFixAction(diagnostic, textDocument);
   });
-  return quickFixActions;
+  // prhルールと優先表記エラーには「優先表記を設定」アクションを追加
+  const setTermActions: CodeAction[] = diagnostics
+    .filter(v => v.code === "prh" || v.code === "preferred-term")
+    .map((diagnostic) => createSetPreferredTermAction(diagnostic, textDocument))
+    .filter((action): action is CodeAction => action !== null);
+  return [...quickFixActions, ...setTermActions];
 });
 
 const getDefaultTextlintSettings = () => {
@@ -93,6 +99,7 @@ const getDefaultTextlintSettings = () => {
 const defaultSettings: ITextlintSettings = {
   maxNumberOfProblems: 1000,
   textlint: getDefaultTextlintSettings(),
+  preferredTerms: {},
 };
 let globalSettings: ITextlintSettings = defaultSettings;
 const documentSettings: Map<string, Thenable<ITextlintSettings>> = new Map();
@@ -217,6 +224,15 @@ const validateTextDocument = async (
         continue;
       }
 
+      // preferredTerms 設定に基づいてスキップ
+      if (message.ruleId === "prh" && message.fix?.range) {
+        const originalText = document.slice(message.fix.range[0], message.fix.range[1]);
+        const preferred = settings.preferredTerms?.[originalText];
+        if (preferred === originalText) {
+          continue; // 元のテキストを正とする設定なので、このエラーはスキップ
+        }
+      }
+
       // エラー範囲の開始位置のズレ
       let startCharacterDiff = 0;
 
@@ -255,6 +271,40 @@ const validateTextDocument = async (
       diagnostics.push(diagnostic);
     }
   }
+
+  // preferredTerms に基づいて逆引き独自エラーを生成
+  for (const [original, preferred] of Object.entries(settings.preferredTerms ?? {})) {
+    const pair = TERM_PAIRS.find(p => p.a === original || p.b === original);
+    if (!pair || preferred !== original) continue;
+    const nonPreferred = preferred === pair.a ? pair.b : pair.a;
+
+    let searchIndex = 0;
+    while (true) {
+      const index = document.indexOf(nonPreferred, searchIndex);
+      if (index === -1) break;
+
+      const beforeText = document.slice(0, index);
+      const lines = beforeText.split('\n');
+      const line = lines.length - 1;
+      const column = lines[lines.length - 1].length;
+
+      const startPos = Position.create(line, column);
+      const endPos = Position.create(line, column + nonPreferred.length);
+
+      const diagnostic: Diagnostic = {
+        severity: DiagnosticSeverity.Warning,
+        range: Range.create(startPos, endPos),
+        message: `「${nonPreferred}」は「${preferred}」とすべきです`,
+        source: APP_NAME,
+        code: "preferred-term",
+        data: preferred,
+      };
+      diagnostics.push(diagnostic);
+
+      searchIndex = index + nonPreferred.length;
+    }
+  }
+
   // 診断結果をVSCodeに送信し、ユーザーインターフェースに表示します。
   connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 };
@@ -343,7 +393,32 @@ const createQuickFixAction = (diagnostic: Diagnostic, textDocument: TextDocument
   fixAction.diagnostics = [diagnostic];
 
   return fixAction;
-}
+};
+
+/**
+ * 優先表記を設定するコードアクションを作成します。
+ */
+const createSetPreferredTermAction = (diagnostic: Diagnostic, textDocument: TextDocument): CodeAction | null => {
+  const originalText = textDocument.getText(diagnostic.range);
+  const pair = TERM_PAIRS.find(p => p.a === originalText || p.b === originalText);
+  if (!pair) {
+    return null;
+  }
+
+  const baseOriginal = pair.a;
+  const action = CodeAction.create(
+    `「${originalText}」を優先表記とする（設定を変更）`,
+    CodeActionKind.QuickFix,
+  );
+  action.command = {
+    command: "japanese-proofreading.setPreferredTerm",
+    title: "優先表記を設定",
+    arguments: [{ original: baseOriginal, preferred: originalText }],
+  };
+  action.diagnostics = [diagnostic];
+
+  return action;
+};
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -363,4 +438,10 @@ interface ITextlintSettings {
    * trueとなっているルールを適用します。
    */
   textlint: { [key: string]: boolean };
+  /**
+   * 表記揺れのある用語の優先表記を設定します。
+   * キー: 元の用語（通常、ICS MEDIA の辞書が指摘する用語）
+   * 値: 優先すべき表記
+   */
+  preferredTerms: { [key: string]: string };
 }
